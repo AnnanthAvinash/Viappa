@@ -1,0 +1,24 @@
+<resources>
+    <string name="app_name">Audio Call</string>
+    <string name="registration_title">Choose your unique ID</string>
+    <string name="display_name_hint">Display name (optional)</string>
+    <string name="username_hint">username</string>
+    <string name="get_started">Get Started</string>
+    <string name="online_users">Online Users</string>
+    <string name="no_users_online">No users online</string>
+    <string name="incoming_call">Incoming call</string>
+    <string name="outgoing_call">Calling...</string>
+    <string name="connecting">Connecting...</string>
+    <string name="call_ended">Call ended</string>
+    <string name="call_failed">Call failed</string>
+    <string name="mute">Mute</string>
+    <string name="unmute">Unmute</string>
+    <string name="speaker">Speaker</string>
+    <string name="earpiece">Earpiece</string>
+    <string name="end_call">End Call</string>
+    <string name="accept">Accept</string>
+    <string name="decline">Decline</string>
+    <string name="permission_required">Permission Required</string>
+    <string name="microphone_permission_message">This app needs microphone access to make audio calls.</string>
+    <string name="grant_permission">Grant Permission</string>
+</resources>
