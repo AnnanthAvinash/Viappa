@@ -3,9 +3,9 @@
 Peer-to-peer audio calling and walkie-talkie app for Android, built with Jetpack Compose, WebRTC, and Firebase.
 
 <p align="center">
-  <img src="screenshots/1" width="200" />
-  <img src="screenshots/2" width="200" />
-  <img src="screenshots/3" width="200" />
+  <img src="screenshots/1.png" width="200" />
+  <img src="screenshots/2.png" width="200" />
+  <img src="screenshots/3.png" width="200" />
 </p>
 
 ## Features
