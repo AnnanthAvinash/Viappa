@@ -19,7 +19,7 @@ Peer-to-peer audio calling and walkie-talkie app for Android, built with Jetpack
 - Call history with filtering
 
 <p align="center">
-  <img src="screenshots/4" width="250" />
+  <img src="screenshots/4.png" width="250" />
 </p>
 
 ### Walkie-Talkie (Push-to-Talk)
@@ -31,7 +31,7 @@ Peer-to-peer audio calling and walkie-talkie app for Android, built with Jetpack
 - Speaker-first audio routing
 
 <p align="center">
-  <img src="screenshots/5" width="250" />
+  <img src="screenshots/5.png" width="250" />
 </p>
 
 ### Friends & Connections
@@ -41,7 +41,7 @@ Peer-to-peer audio calling and walkie-talkie app for Android, built with Jetpack
 - Real-time online/offline/in-call status indicators
 
 <p align="center">
-  <img src="screenshots/6" width="250" />
+  <img src="screenshots/6.png" width="250" />
 </p>
 
 ### Other
