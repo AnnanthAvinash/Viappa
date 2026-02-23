@@ -16,37 +16,55 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF00D9FF),
-    secondary = Color(0xFF00FF94),
-    tertiary = Color(0xFFFF6B6B),
-    background = Color(0xFF1A1A2E),
-    surface = Color(0xFF16213E),
+private val LightColorScheme = lightColorScheme(
+    primary = Blue600,
     onPrimary = Color.White,
+    primaryContainer = Blue100,
+    onPrimaryContainer = Gray900,
+    secondary = Green500,
     onSecondary = Color.White,
+    secondaryContainer = Green100,
+    onSecondaryContainer = Gray900,
+    tertiary = Purple600,
     onTertiary = Color.White,
-    onBackground = Color.White,
-    onSurface = Color.White,
-    error = Color(0xFFFF6B6B)
+    error = Red500,
+    onError = Color.White,
+    errorContainer = Red100,
+    onErrorContainer = Red600,
+    background = AppBackground,
+    onBackground = Gray900,
+    surface = Color.White,
+    onSurface = Gray900,
+    surfaceVariant = Gray100,
+    onSurfaceVariant = Gray600,
+    outline = Gray300,
+    outlineVariant = Gray200
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF00B4D8),
-    secondary = Color(0xFF00C853),
-    tertiary = Color(0xFFFF5252),
-    background = Color(0xFFF5F5F5),
-    surface = Color.White,
+private val DarkColorScheme = darkColorScheme(
+    primary = Blue500,
     onPrimary = Color.White,
+    primaryContainer = Color(0xFF1E3A5F),
+    onPrimaryContainer = Blue100,
+    secondary = Green500,
     onSecondary = Color.White,
+    tertiary = Purple600,
     onTertiary = Color.White,
-    onBackground = Color(0xFF1A1A2E),
-    onSurface = Color(0xFF1A1A2E),
-    error = Color(0xFFFF5252)
+    error = Red500,
+    onError = Color.White,
+    background = Color(0xFF111827),
+    onBackground = Color.White,
+    surface = Color(0xFF1F2937),
+    onSurface = Color.White,
+    surfaceVariant = Color(0xFF374151),
+    onSurfaceVariant = Gray300,
+    outline = Gray600,
+    outlineVariant = Gray700
 )
 
 @Composable
 fun AudioCallAppTheme(
-    darkTheme: Boolean = true, // Always use dark theme for this app
+    darkTheme: Boolean = false,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {

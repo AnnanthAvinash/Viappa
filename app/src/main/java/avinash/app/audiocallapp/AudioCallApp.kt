@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import android.util.Log
+import avinash.app.audiocallapp.feature.NotificationConfig
+import avinash.app.audiocallapp.service.NotificationHelper
 import avinash.app.audiocallapp.webrtc.WebRTCClient
 import dagger.hilt.android.HiltAndroidApp
 
@@ -13,13 +15,13 @@ class AudioCallApp : Application() {
 
     companion object {
         private const val TAG = "AudioCallApp"
-        const val CALL_CHANNEL_ID = "call_channel"
-        const val CALL_CHANNEL_NAME = "Audio Calls"
     }
 
     override fun onCreate() {
         super.onCreate()
+        NotificationConfig.notificationIconRes = R.drawable.ic_launcher_foreground
         createNotificationChannels()
+        NotificationHelper.createConnectionChannel(this)
         configureTurnServers()
     }
 
@@ -40,8 +42,8 @@ class AudioCallApp : Application() {
     private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val callChannel = NotificationChannel(
-                CALL_CHANNEL_ID,
-                CALL_CHANNEL_NAME,
+                NotificationConfig.CALL_CHANNEL_ID,
+                "Audio Calls",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Notifications for ongoing audio calls"
@@ -49,8 +51,19 @@ class AudioCallApp : Application() {
                 enableVibration(true)
             }
 
+            val wtChannel = NotificationChannel(
+                NotificationConfig.WT_CHANNEL_ID,
+                "Walkie-Talkie",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Walkie-Talkie background service"
+                setSound(null, null)
+                enableVibration(false)
+            }
+
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(callChannel)
+            notificationManager.createNotificationChannel(wtChannel)
         }
     }
 }

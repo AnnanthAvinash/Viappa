@@ -21,3 +21,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "AudioCallApp"
 include(":app")
+include(":core")
+include(":feature-call")
+include(":feature-walkietalkie")

@@ -3,6 +3,7 @@ package avinash.app.audiocallapp.presentation.registration
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import avinash.app.audiocallapp.data.model.User
+import avinash.app.audiocallapp.data.repository.FcmTokenRepository
 import avinash.app.audiocallapp.domain.repository.AuthRepository
 import avinash.app.audiocallapp.domain.usecase.RegisterUserUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,7 +31,8 @@ data class RegistrationUiState(
 @HiltViewModel
 class RegistrationViewModel @Inject constructor(
     private val registerUserUseCase: RegisterUserUseCase,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    val fcmTokenRepository: FcmTokenRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RegistrationUiState())
@@ -122,6 +124,7 @@ class RegistrationViewModel @Inject constructor(
 
             result.fold(
                 onSuccess = { user ->
+                    fcmTokenRepository.saveCurrentToken()
                     _uiState.update {
                         it.copy(
                             isRegistering = false,

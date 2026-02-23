@@ -53,6 +53,11 @@ android {
 }
 
 dependencies {
+    // Modules — remove a line to exclude that feature
+    implementation(project(":core"))
+    implementation(project(":feature-call"))
+    implementation(project(":feature-walkietalkie"))
+
     // Core Android
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -77,11 +82,17 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    implementation(libs.firebase.messaging)
 
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+
+    // Room
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
 
     // WebRTC
     implementation(libs.webrtc)

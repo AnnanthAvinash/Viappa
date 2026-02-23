@@ -1,14 +1,13 @@
 package avinash.app.audiocallapp.presentation.userlist
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import avinash.app.audiocallapp.data.model.CallSignal
 import avinash.app.audiocallapp.data.model.User
 import avinash.app.audiocallapp.data.model.UserStatus
+import avinash.app.audiocallapp.data.repository.CallHistoryRepository
 import avinash.app.audiocallapp.domain.repository.AuthRepository
-import avinash.app.audiocallapp.domain.usecase.CallUseCase
 import avinash.app.audiocallapp.domain.usecase.GetAvailableUsersUseCase
+import avinash.app.audiocallapp.feature.FeatureInitializer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +21,6 @@ data class UserListUiState(
     val currentUser: User? = null,
     val availableUsers: List<User> = emptyList(),
     val isLoading: Boolean = true,
-    val incomingCall: CallSignal? = null,
     val errorMessage: String? = null
 )
 
@@ -30,12 +28,9 @@ data class UserListUiState(
 class UserListViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val getAvailableUsersUseCase: GetAvailableUsersUseCase,
-    private val callUseCase: CallUseCase
+    private val featureInitializers: Set<@JvmSuppressWildcards FeatureInitializer>,
+    val callHistoryRepository: CallHistoryRepository
 ) : ViewModel() {
-
-    companion object {
-        private const val TAG = "AudioCallApp"
-    }
 
     private val _uiState = MutableStateFlow(UserListUiState())
     val uiState: StateFlow<UserListUiState> = _uiState.asStateFlow()
@@ -49,15 +44,9 @@ class UserListViewModel @Inject constructor(
             val user = authRepository.getCurrentUser()
             if (user != null) {
                 _uiState.update { it.copy(currentUser = user) }
-                
-                // Set user online
                 authRepository.updateUserStatus(UserStatus.ONLINE)
-                
-                // Observe available users
                 observeAvailableUsers(user.uniqueId)
-                
-                // Observe incoming calls
-                observeIncomingCalls(user.uniqueId)
+                featureInitializers.forEach { it.initialize(user.uniqueId, user.displayName) }
             }
         }
     }
@@ -67,55 +56,25 @@ class UserListViewModel @Inject constructor(
             getAvailableUsersUseCase(currentUserId)
                 .catch { e ->
                     _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            errorMessage = e.message ?: "Failed to load users"
-                        )
+                        it.copy(isLoading = false, errorMessage = e.message ?: "Failed to load users")
                     }
                 }
                 .collect { users ->
-                    _uiState.update {
-                        it.copy(
-                            availableUsers = users,
-                            isLoading = false
-                        )
-                    }
+                    _uiState.update { it.copy(availableUsers = users, isLoading = false) }
                 }
         }
     }
 
-    private fun observeIncomingCalls(calleeId: String) {
+    fun updateDisplayName(name: String, onResult: (Result<Unit>) -> Unit) {
         viewModelScope.launch {
-            Log.d(TAG, "[INCOMING] Starting listener for: $calleeId")
-            callUseCase.observeIncomingCalls(calleeId)
-                .catch { e ->
-                    Log.e(TAG, "[INCOMING] Error: ${e.message}")
-                }
-                .collect { call ->
-                    if (call != null) {
-                        Log.d(TAG, "[INCOMING] Call notification: ${call.callerName}")
-                    }
-                    _uiState.update { it.copy(incomingCall = call) }
-                }
+            val result = authRepository.updateDisplayName(name)
+            onResult(result)
         }
-    }
-
-    fun rejectIncomingCall() {
-        viewModelScope.launch {
-            val callId = _uiState.value.incomingCall?.callId ?: return@launch
-            Log.d(TAG, "[INCOMING] Rejecting call: $callId")
-            callUseCase.rejectCall(callId)
-            _uiState.update { it.copy(incomingCall = null) }
-            Log.d(TAG, "[INCOMING] Call rejected")
-        }
-    }
-
-    fun clearIncomingCall() {
-        _uiState.update { it.copy(incomingCall = null) }
     }
 
     fun signOut() {
         viewModelScope.launch {
+            featureInitializers.forEach { it.cleanup() }
             authRepository.signOut()
         }
     }
@@ -127,6 +86,7 @@ class UserListViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         viewModelScope.launch {
+            featureInitializers.forEach { it.cleanup() }
             authRepository.updateUserStatus(UserStatus.OFFLINE)
         }
     }

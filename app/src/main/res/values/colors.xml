@@ -7,6 +7,7 @@
     <color name="surface_dark">#16213E</color>
     <color name="accent_blue">#0F3460</color>
     <color name="error">#FF6B6B</color>
+    <color name="app_background">#FEF6F0</color>
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
 </resources>

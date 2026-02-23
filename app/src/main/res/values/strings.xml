@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Audio Call</string>
+    <string name="app_name">Vaippa</string>
     <string name="registration_title">Choose your unique ID</string>
     <string name="display_name_hint">Display name (optional)</string>
     <string name="username_hint">username</string>

@@ -1,0 +1,20 @@
+---
+description: Behavioral rules for AI agents working on this project
+alwaysApply: true
+---
+
+# Agent Behavior Rules
+
+## Knowledge File Updates
+- Do NOT update the knowledge file (`project-context.mdc`) without explicit user permission
+- Only update the knowledge file after test cases have passed successfully and the user confirms
+- Always ask before modifying any rule file in `.cursor/rules/`
+
+## Implementation Workflow
+- ALWAYS propose the solution first and wait for user approval before writing any code
+- This applies in ALL modes (Agent, Ask, Plan, Debug) -- explain the approach, then implement only after user confirms
+- Never jump straight to implementation without explaining what you plan to do and why
+
+## General
+- Ask permission before making changes outside the scope of the current task
+- Do not proactively create or modify documentation/rule files unless explicitly requested

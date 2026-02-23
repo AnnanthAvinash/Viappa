@@ -1,6 +1,7 @@
 package avinash.app.audiocallapp
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -22,19 +23,32 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import avinash.app.audiocallapp.feature.FeatureNavigation
 import avinash.app.audiocallapp.navigation.AppNavigation
 import avinash.app.audiocallapp.navigation.Screen
 import avinash.app.audiocallapp.ui.theme.AudioCallAppTheme
+import avinash.app.audiocallapp.data.repository.FcmTokenRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+
+    @Inject
+    lateinit var fcmTokenRepository: FcmTokenRepository
+
     @Inject
     lateinit var firebaseAuth: FirebaseAuth
+
+    @Inject
+    lateinit var featureNavigations: Set<@JvmSuppressWildcards FeatureNavigation>
 
     private var showPermissionDialog by mutableStateOf(false)
     private var permissionsDenied by mutableStateOf(false)
@@ -70,6 +84,12 @@ class MainActivity : ComponentActivity() {
 
         checkAndRequestPermissions()
 
+        if (firebaseAuth.currentUser != null) {
+            CoroutineScope(Dispatchers.IO).launch {
+                fcmTokenRepository.saveCurrentToken()
+            }
+        }
+
         setContent {
             AudioCallAppTheme {
                 Surface(
@@ -77,13 +97,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-                    val startDestination = remember {
-                        if (firebaseAuth.currentUser != null) {
-                            Screen.UserList.route
-                        } else {
-                            Screen.Registration.route
-                        }
-                    }
+                    val startDestination = Screen.Splash.route
 
                     if (showPermissionDialog) {
                         PermissionDialog(
@@ -105,11 +119,29 @@ class MainActivity : ComponentActivity() {
                     } else {
                         AppNavigation(
                             navController = navController,
+                            featureNavigations = featureNavigations,
                             startDestination = startDestination
                         )
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
+    private fun handleCallNotificationIntent(intent: Intent?, navController: NavController) {
+        val navigateTo = intent?.getStringExtra("navigate_to") ?: return
+        if (navigateTo == "active_call") {
+            val remoteName = intent.getStringExtra("remote_user_name") ?: return
+            val remoteUserId = intent.getStringExtra("remote_user_id") ?: ""
+            navController.navigate(Screen.Call.createRoute(remoteUserId, remoteName, isCaller = false)) {
+                launchSingleTop = true
+            }
+            intent.removeExtra("navigate_to")
         }
     }
 

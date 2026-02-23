@@ -1,0 +1,240 @@
+---
+description: AudioCallApp project architecture, conventions, and known patterns
+alwaysApply: true
+---
+
+# AudioCallApp - Project Context
+
+## Overview
+Android audio calling + walkie-talkie app (Vaippa) built with Jetpack Compose, WebRTC, Firebase, and Hilt DI. Users register with a unique ID (anonymous Firebase Auth), add friends via connection requests, and make peer-to-peer audio calls or use push-to-talk walkie-talkie with connected friends.
+
+## Tech Stack
+- **UI**: Jetpack Compose + Material 3
+- **Navigation**: Compose Navigation (nested graphs: root + inner MainScreen)
+- **DI**: Hilt (`@HiltViewModel`, `@AndroidEntryPoint`, `@Singleton`, Multibinding for features)
+- **Auth**: Firebase Anonymous Auth + Firestore `uid_mapping` collection
+- **Database**: Firebase Firestore (remote) + Room (local cache)
+- **Calls**: WebRTC via `io.getstream:stream-webrtc-android`
+- **Walkie-Talkie**: WebRTC + DataChannel (push-to-talk, persistent peer connections)
+- **Notifications**: FCM (Cloud Functions not yet deployed -- needs Blaze plan)
+- **Build**: Kotlin 2.0.21, compileSdk 36, KSP for Room/Hilt, Multi-module Gradle
+
+## Multi-Module Architecture
+```
+:app                   -- Application shell, navigation, auth/main/settings UI
+:core                  -- Shared infrastructure (WebRTC, Firebase, Room, models, DI)
+:feature-call          -- Voice call feature (CallManager, CallScreen, signaling)
+:feature-walkietalkie  -- Walkie-talkie feature (WalkieTalkieManager, PTT, DataChannel)
+```
+Features are pluggable -- remove a line from `app/build.gradle.kts` to exclude a feature.
+
+### Module Dependencies
+```
+:app → :core, :feature-call, :feature-walkietalkie
+:feature-call → :core
+:feature-walkietalkie → :core
+```
+
+### Feature Plugin System (Hilt Multibinding)
+- `FeatureInitializer` -- features auto-initialize when user loads (`initialize(userId, userName)` / `cleanup()`)
+- `FeatureNavigation` -- features register their own Compose routes into the root NavHost
+- `CallStateProvider` -- call feature exposes active-call state to WT feature (decoupled)
+- `NotificationConfig` -- shared notification channel IDs and icon resource
+- `Routes` -- shared route patterns for cross-module navigation
+
+### File Layout per Module
+```
+:core
+├── data/model/          -- User, Connection, ConnectionRequest, SessionDescription, IceCandidate
+├── data/repository/     -- AuthRepositoryImpl, ConnectionRepositoryImpl, CallHistoryRepository,
+│                           FcmTokenRepository, UserPresenceRepositoryImpl
+├── data/local/          -- Room DB (AppDatabase, DAOs, Entities)
+├── domain/repository/   -- AuthRepository, ConnectionRepository, UserPresenceRepository
+├── domain/usecase/      -- ConnectionUseCase, CallHistoryUseCase, RegisterUserUseCase,
+│                           GetAvailableUsersUseCase
+├── webrtc/              -- WebRTCClient, RTCAudioManager, NetworkChangeHandler
+├── util/                -- InAppNotificationBus
+├── feature/             -- FeatureInitializer, FeatureNavigation, CallStateProvider, Routes,
+│                           NotificationConfig
+├── di/                  -- AppModule, DatabaseModule, RepositoryModule, CoreBindingsModule
+
+:feature-call
+├── data/model/          -- CallSignal, CallStatus
+├── data/repository/     -- CallSignalingRepositoryImpl
+├── domain/repository/   -- CallSignalingRepository
+├── domain/usecase/      -- CallUseCase
+├── call/                -- CallManager (implements CallStateProvider)
+├── presentation/call/   -- CallScreen, CallViewModel, CallFeedbackScreen, CallHistoryViewModel
+├── service/             -- CallForegroundService
+├── feature/             -- CallFeatureEntry, CallFeatureNavigation
+├── di/                  -- CallModule
+
+:feature-walkietalkie
+├── data/model/          -- WalkieTalkieSignal (WtConnectionSignal, WtConnectionStatus)
+├── data/repository/     -- WalkieTalkieRepositoryImpl
+├── domain/repository/   -- WalkieTalkieRepository, WtRole
+├── domain/usecase/      -- WalkieTalkieUseCase
+├── walkietalkie/        -- WalkieTalkieManager, PeerConnectionPool, WalkieTalkieAudioManager
+├── presentation/walkietalkie/ -- WalkieTalkieScreen, WalkieTalkieViewModel
+├── service/             -- WalkieTalkieForegroundService
+├── feature/             -- WtFeatureEntry, WtFeatureNavigation
+├── di/                  -- WalkieTalkieModule
+
+:app
+├── AudioCallApp.kt      -- Application class, notification channels, TURN config
+├── MainActivity.kt       -- Entry point, permissions, injects FeatureNavigation set
+├── navigation/           -- AppNavigation (Screen sealed class, delegates to FeatureNavigation)
+├── presentation/auth/    -- SplashScreen, LoginScreen, RegisterScreen
+├── presentation/main/    -- MainScreen (Scaffold + bottom nav + IncomingCallBar)
+├── presentation/main/screens/ -- HomeScreen (mode toggle), FriendsListScreen,
+│                                  SearchUsersScreen, ConnectionRequestsScreen, etc.
+├── presentation/connection/   -- ConnectionViewModel
+├── presentation/userlist/     -- UserListViewModel (uses Set<FeatureInitializer>)
+├── presentation/settings/     -- SettingsScreen, ChangePasswordScreen, etc.
+├── presentation/info/         -- AboutScreen, HelpScreen, etc.
+├── service/                   -- FcmService, NotificationHelper
+├── ui/theme/                  -- Theme, Colors
+```
+
+## Firestore Collections
+- `users/{uniqueId}` -- displayName, status (ONLINE/OFFLINE/IN_CALL), lastSeen, createdAt, fcmToken
+- `uid_mapping/{firebaseUid}` -- maps Firebase Auth UID to uniqueId
+- `calls/{callId}` -- callerId, calleeId, callerName, calleeName, status, offer, answer, createdAt
+  - `calls/{callId}/callerCandidates` -- ICE candidates from caller
+  - `calls/{callId}/calleeCandidates` -- ICE candidates from callee
+- `connection_requests/{id}` -- senderId, receiverId, senderName, receiverName, status (pending/accepted/rejected), createdAt
+- `connections/{id}` -- userAId, userBId, userAName, userBName, createdAt
+- `wt_connections/{pairId}` -- offererId, answererId, offererName, answererName, offer, answer, status, createdAt
+  - `wt_connections/{pairId}/offererCandidates` -- ICE candidates from offerer
+  - `wt_connections/{pairId}/answererCandidates` -- ICE candidates from answerer
+
+## Critical Known Patterns
+
+### Firestore Composite Index Issue
+Firestore queries combining `whereEqualTo` + `orderBy` silently fail without composite indexes. Always filter and sort client-side instead:
+```kotlin
+// BAD -- silently fails without composite index
+collection.whereEqualTo("field1", val1).whereEqualTo("field2", val2).orderBy("createdAt")
+
+// GOOD -- filter/sort in Kotlin
+collection.whereEqualTo("field1", val1).addSnapshotListener { snapshot, _ ->
+    val results = snapshot?.documents
+        ?.mapNotNull { ... }
+        ?.filter { it.field2 == val2 }
+        ?.sortedByDescending { it.createdAt }
+}
+```
+
+### User Observation and Status Indicators
+`observeAvailableUsers` in `UserPresenceRepositoryImpl` (core module) listens to the entire `users` collection (no status filter). All friend lists show all friends in a single list, sorted online-first.
+
+**Status dot colors on avatar:**
+- **Green dot** (`Green500`): `UserStatus.ONLINE`
+- **Yellow dot** (`Yellow400`): `UserStatus.IN_CALL`
+- **No dot**: `UserStatus.OFFLINE`
+
+This applies consistently across `FriendRow`, `WalkieTalkieFriendRow` (HomeScreen/FriendsListScreen) and `UserProfileScreen`. Users can call anyone regardless of status. `UserProfileScreen` shows status text: "Online", "In Call", or "Offline".
+
+### HomeScreen Mode Toggle
+HomeScreen and FriendsListScreen have a Calls/Walkie-Talkie toggle at the top. Switching modes only changes the UI view -- both features remain active in background regardless of selected mode.
+- **Calls mode**: Shows `FriendRow` with phone icon → taps navigate to `Screen.Call`
+- **Walkie-Talkie mode**: Shows `WalkieTalkieFriendRow` with voice icon → taps navigate to `Screen.WalkieTalkie`
+
+### Feature Initialization via Multibinding
+`UserListViewModel` injects `Set<FeatureInitializer>`. On user load, it calls `initialize(userId, userName)` on each. On sign-out/clear, it calls `cleanup()`. This replaces direct CallManager/WalkieTalkieManager references.
+
+### CallManager (Singleton -- Central Call State)
+`CallManager` (`feature-call/.../call/CallManager.kt`) is the single source of truth for all call state. It implements `CallStateProvider` for cross-module communication.
+
+**StateFlows:**
+- `incomingCall: StateFlow<CallSignal?>` -- non-null when a RINGING call is detected
+- `callUiState: StateFlow<CallUiState>` -- current call state (IDLE, OUTGOING, INCOMING, CONNECTING, CONNECTED, ENDED, FAILED)
+- `isInActiveCall: StateFlow<Boolean>` -- from CallStateProvider, used by WT for conflict detection
+- `activeCallRemoteUserId: StateFlow<String?>` -- from CallStateProvider
+
+**Key methods:**
+- `initialize()` -- initializes WebRTC, starts network monitoring
+- `startObservingIncomingCalls(userId)` / `stopObservingIncomingCalls()`
+- `initiateOutgoingCall(calleeId, calleeName)`
+- `acceptIncomingCall()` / `rejectIncomingCall()`
+- `endCall()` / `resetState()`
+
+### WalkieTalkieManager (Singleton)
+`WalkieTalkieManager` (`feature-walkietalkie/.../walkietalkie/WalkieTalkieManager.kt`) manages push-to-talk connections.
+
+**Key behaviors:**
+- Auto-connects to online friends via persistent WebRTC peer connections
+- Push-to-talk: `startTalking()` enables local audio track, `stopTalking()` disables
+- DataChannel for real-time `TALK_START`/`TALK_STOP` signaling (low latency)
+- Call Conflict Guard: pauses WT audio when `CallStateProvider.isInActiveCall` is true
+- Deterministic offerer selection via sorted user IDs
+- Exponential backoff reconnection
+
+**StateFlows:**
+- `isActive: StateFlow<Boolean>` -- whether the WT service is started
+- `peerStates: StateFlow<Map<String, WtPeerState>>` -- per-friend connection state
+- `isTalking: StateFlow<Boolean>` / `talkingToFriendId: StateFlow<String?>` -- PTT state
+- `remoteSpeakingFriends: StateFlow<Set<String>>` -- friends currently transmitting
+
+**WtPeerState enum:** CONNECTING, CONNECTED, RECONNECTING, DISCONNECTED, FAILED
+
+### WalkieTalkieScreen (Connection-Aware UI)
+Dark gradient background changes based on connection state. Shows:
+- `ConnectionStatusSection` -- pill badge with animated icon (spins during CONNECTING/RECONNECTING)
+- `FriendAvatarSection` -- avatar with color-coded ring (green=speaking, blue=connected, yellow=connecting, gray=disconnected), gentle pulse when waiting
+- `WaitingForConnectionCard` -- shown when NOT connected, displays animated dots and contextual message:
+  - DISCONNECTED: "Waiting for Connection" + "{name} needs to be online for the channel to open"
+  - CONNECTING: "Connecting" + "Setting up audio channel with {name}..."
+  - RECONNECTING: "Reconnecting" + "Lost connection. Attempting to restore..."
+  - FAILED: "Retrying" + "Connection failed. Auto-retrying with backoff..."
+- `PushToTalkButton` -- disabled (dark gray, shows "WAITING") until CONNECTED, then blue hold-to-talk
+- Status text at bottom adapts to all states
+
+### Unified CallScreen
+All call UI states handled by single `CallScreen` in `:feature-call`. Route: `call/{remoteUserId}/{remoteName}?isCaller={isCaller}`
+
+### IncomingCallBar (App-Wide)
+Shown when `callManager.incomingCall` is non-null. Appears on both `MainScreen` and `CallScreen`.
+
+### Call End Flow
+Write ENDED → wait 1.5s → delete document → set ONLINE. Remote detects via Firestore observer.
+
+### Connection Request Duplicate Prevention
+`sendRequest` checks both directions and existing friendships. `acceptRequest` uses `firestore.runTransaction`.
+
+### Cross-Module Communication Pattern
+`:feature-walkietalkie` depends on `:core` only. It uses `CallStateProvider` interface to detect active calls without importing `:feature-call`. If `:feature-call` is removed, `NoOpCallStateProvider` is used automatically via `CoreDefaultsModule`.
+
+## Room Database (Local)
+- `CallHistoryEntity` -- call records (type, duration, remoteUser, timestamp)
+- `CachedFriendEntity` -- offline friends cache
+- `CachedProfileEntity` -- offline profile cache
+- DB class: `AppDatabase` (core), DI module: `DatabaseModule` (core)
+
+## FCM Setup (Partially Complete)
+- Android side: `FcmService`, `NotificationHelper`, `FcmTokenRepository`, `InAppNotificationBus` -- implemented
+- Cloud Functions: `functions/index.js` -- code written, not deployed (requires Blaze plan)
+
+## Branding & Theming
+- **App Name**: Vaippa (all user-facing strings, notifications, legal text)
+- **App Background**: `#FEF6F0` (`AppBackground` in Color.kt) -- used as `MaterialTheme.colorScheme.background` in light theme (all screens inherit via Surface in MainActivity)
+- **Logo**: `@drawable/logo` (VectorDrawable) -- displayed with `.clip(CircleShape)` in Compose
+- **Splash Logo**: `@drawable/splash_logo` -- padded version (1540x1540 viewport with logo centered via `<group translateX/Y>`) for Android 12+ cold boot. The 1.5x viewport ensures content fits within the system's 2/3 visible circle mask.
+- **Splash Screen**: `AppBackground` bg, circular logo, "Vaippa" title, "Internet Voice Calling" subtitle, blue spinner. Firebase auth check wrapped in try-catch for GMS resilience.
+- **Cold Boot Splash (Android 12+)**: `values-v31/themes.xml` and `values-night-v31/themes.xml` set `windowSplashScreenBackground`, `windowSplashScreenAnimatedIcon` (`@drawable/splash_logo`), and `windowSplashScreenIconBackgroundColor` (all `@color/app_background`). System auto-clips icon to circle.
+
+## Navigation Routes
+Root: Splash -> Login/Register -> Main
+Main (inner NavHost): Home, Friends, Search, Requests, Notifications, History, Profile, ProfileDetail/{userId}, EditProfile, Settings, sub-settings
+Feature routes (registered via FeatureNavigation):
+- Call: `call/{remoteUserId}/{remoteName}?isCaller={isCaller}`, CallFeedback/{remoteName}/{duration}
+- WalkieTalkie: `walkie_talkie/{friendId}/{friendName}`
+
+## Resolved Bugs (Keep for Reference)
+- **Firestore status filter on users query**: `observeAvailableUsers` must NOT filter by status -- prevents offline friends from appearing.
+- **IN_CALL status stuck after reject/end**: All terminal handlers reset Firestore user status to ONLINE.
+- **Rejected call document lingering**: REJECTED handler deletes the call document.
+- **Incoming call bar not showing during active calls**: `startObservingIncomingCalls` has no state gate.
+- **IncomingCallOverlay Z-order**: Placed AFTER Scaffold in a Box.
+- **Firestore composite index**: Use client-side filtering/sorting.
+- **Cross-module import violations**: Feature modules must NEVER import from `:app`. `Color.kt` lives in both `:core` and `:app` (identical). `IncomingCallBar` extracted to `:feature-call` (`presentation/call/IncomingCallBar.kt`). Feature screens use `Routes.*` from `:core` instead of `Screen.*` from `:app`. Services use `NotificationConfig` from `:core` and `packageManager.getLaunchIntentForPackage()` instead of referencing `MainActivity` directly.

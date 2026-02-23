@@ -15,6 +15,7 @@
     <!-- Foreground service for calls -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <!-- Required for FOREGROUND_SERVICE_PHONE_CALL on Android 15+ (API 35+) -->
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
 
@@ -52,12 +53,16 @@
             </intent-filter>
         </activity>
 
-        <!-- Call Foreground Service -->
+        <!-- Call + WT services are declared in their feature module manifests (auto-merged) -->
+
+        <!-- FCM Service -->
         <service
-            android:name=".service.CallForegroundService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall" />
+            android:name=".service.FcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
     </application>
 

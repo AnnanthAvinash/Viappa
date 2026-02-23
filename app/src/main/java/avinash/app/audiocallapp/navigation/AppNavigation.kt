@@ -2,30 +2,64 @@ package avinash.app.audiocallapp.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.navArgument
-import avinash.app.audiocallapp.presentation.call.CallScreen
-import avinash.app.audiocallapp.presentation.registration.RegistrationScreen
-import avinash.app.audiocallapp.presentation.userlist.UserListScreen
-import java.net.URLDecoder
+import avinash.app.audiocallapp.feature.FeatureNavigation
+import avinash.app.audiocallapp.feature.Routes
+import avinash.app.audiocallapp.presentation.auth.SplashScreen
+import avinash.app.audiocallapp.presentation.auth.LoginScreen
+import avinash.app.audiocallapp.presentation.auth.RegisterScreen
+import avinash.app.audiocallapp.presentation.auth.ForgotPasswordScreen
+import avinash.app.audiocallapp.presentation.auth.AccountVerificationScreen
+import avinash.app.audiocallapp.presentation.main.MainScreen
+import avinash.app.audiocallapp.presentation.system.OfflineModeScreen
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 sealed class Screen(val route: String) {
-    object Registration : Screen("registration")
-    object UserList : Screen("user_list")
-    object OutgoingCall : Screen("outgoing_call/{calleeId}/{calleeName}") {
-        fun createRoute(calleeId: String, calleeName: String): String {
-            val encodedName = URLEncoder.encode(calleeName, StandardCharsets.UTF_8.toString())
-            return "outgoing_call/$calleeId/$encodedName"
-        }
+    object Splash : Screen("splash")
+    object Login : Screen("login")
+    object Register : Screen("register")
+    object ForgotPassword : Screen("forgot_password")
+    object VerifyAccount : Screen("verify_account")
+    object Offline : Screen("offline")
+
+    object Main : Screen("main")
+
+    object Home : Screen("home")
+    object Friends : Screen("friends")
+    object Search : Screen("search")
+    object Requests : Screen("requests")
+    object Notifications : Screen("notifications")
+    object History : Screen("history")
+    object Profile : Screen("profile")
+    object ProfileDetail : Screen("profile/{userId}") {
+        fun createRoute(userId: String): String = "profile/$userId"
     }
-    object IncomingCall : Screen("incoming_call/{callId}/{callerId}/{callerName}") {
-        fun createRoute(callId: String, callerId: String, callerName: String): String {
-            val encodedName = URLEncoder.encode(callerName, StandardCharsets.UTF_8.toString())
-            return "incoming_call/$callId/$callerId/$encodedName"
+    object EditProfile : Screen("edit_profile")
+    object Settings : Screen("settings")
+    object ChangePassword : Screen("change_password")
+    object DeleteAccount : Screen("delete_account")
+    object BlockedUsers : Screen("blocked_users")
+    object About : Screen("about")
+    object Help : Screen("help")
+    object Privacy : Screen("privacy")
+    object Terms : Screen("terms")
+
+    object Call : Screen(Routes.Call.PATTERN) {
+        fun createRoute(userId: String, name: String, isCaller: Boolean = true): String =
+            Routes.Call.create(userId, name, isCaller)
+    }
+
+    object WalkieTalkie : Screen(Routes.WalkieTalkie.PATTERN) {
+        fun createRoute(friendId: String, friendName: String): String =
+            Routes.WalkieTalkie.create(friendId, friendName)
+    }
+
+    object CallFeedback : Screen("call_feedback/{remoteName}/{duration}") {
+        fun createRoute(remoteName: String, duration: String): String {
+            val encoded = URLEncoder.encode(remoteName, StandardCharsets.UTF_8.toString())
+            return "call_feedback/$encoded/$duration"
         }
     }
 }
@@ -33,81 +67,39 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavigation(
     navController: NavHostController,
-    startDestination: String = Screen.Registration.route
+    featureNavigations: Set<FeatureNavigation>,
+    startDestination: String = Screen.Splash.route
 ) {
     NavHost(
         navController = navController,
         startDestination = startDestination
     ) {
-        composable(Screen.Registration.route) {
-            RegistrationScreen(
-                onRegistrationSuccess = {
-                    navController.navigate(Screen.UserList.route) {
-                        popUpTo(Screen.Registration.route) { inclusive = true }
-                    }
-                }
-            )
+        composable(Screen.Splash.route) {
+            SplashScreen(navController = navController)
+        }
+        composable(Screen.Login.route) {
+            LoginScreen(navController = navController)
+        }
+        composable(Screen.Register.route) {
+            RegisterScreen(navController = navController)
+        }
+        composable(Screen.ForgotPassword.route) {
+            ForgotPasswordScreen(navController = navController)
+        }
+        composable(Screen.VerifyAccount.route) {
+            AccountVerificationScreen(navController = navController)
         }
 
-        composable(Screen.UserList.route) {
-            UserListScreen(
-                onCallUser = { calleeId, calleeName ->
-                    navController.navigate(Screen.OutgoingCall.createRoute(calleeId, calleeName))
-                },
-                onAnswerCall = { callId, callerId, callerName ->
-                    navController.navigate(Screen.IncomingCall.createRoute(callId, callerId, callerName))
-                },
-                onSignOut = {
-                    navController.navigate(Screen.Registration.route) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                }
-            )
+        composable(Screen.Offline.route) {
+            OfflineModeScreen(onRetry = { navController.popBackStack() })
         }
 
-        composable(
-            route = Screen.OutgoingCall.route,
-            arguments = listOf(
-                navArgument("calleeId") { type = NavType.StringType },
-                navArgument("calleeName") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val calleeId = backStackEntry.arguments?.getString("calleeId") ?: ""
-            val calleeName = backStackEntry.arguments?.getString("calleeName")?.let {
-                URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
-            } ?: ""
-
-            CallScreen(
-                calleeId = calleeId,
-                calleeName = calleeName,
-                onCallEnded = {
-                    navController.popBackStack()
-                }
-            )
+        composable(Screen.Main.route) {
+            MainScreen(rootNavController = navController)
         }
 
-        composable(
-            route = Screen.IncomingCall.route,
-            arguments = listOf(
-                navArgument("callId") { type = NavType.StringType },
-                navArgument("callerId") { type = NavType.StringType },
-                navArgument("callerName") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val callId = backStackEntry.arguments?.getString("callId") ?: ""
-            val callerId = backStackEntry.arguments?.getString("callerId") ?: ""
-            val callerName = backStackEntry.arguments?.getString("callerName")?.let {
-                URLDecoder.decode(it, StandardCharsets.UTF_8.toString())
-            } ?: ""
-
-            CallScreen(
-                incomingCallId = callId,
-                incomingCallerId = callerId,
-                incomingCallerName = callerName,
-                onCallEnded = {
-                    navController.popBackStack()
-                }
-            )
+        featureNavigations.forEach { featureNav ->
+            featureNav.registerRoutes(this, navController)
         }
     }
 }
